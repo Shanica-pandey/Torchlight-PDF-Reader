@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Reader with Adjustable Torchlight</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: black;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #pdf-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        canvas {
+            position: absolute;
+            z-index: 2;
+        }
+
+        /* Black overlay to create a strong torch effect */
+        #dark-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            pointer-events: none;
+            z-index: 3;
+            mask: radial-gradient(circle 80px at 50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 60%);
+            -webkit-mask: radial-gradient(circle 80px at 50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 60%);
+        }
+
+        /* Controls (File Input & Torch Size Slider) */
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 4;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        label, input {
+            color: white;
+            font-size: 14px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <!-- File input for selecting the PDF -->
+        <label for="book-file">📂 Choose a PDF:</label>
+        <input type="file" id="book-file" accept="application/pdf" />
+
+        <!-- Torch size adjustment slider -->
+        <label for="torch-size">🔦 Torch Size:</label>
+        <input type="range" id="torch-size" min="50" max="200" value="80">
+    </div>
+
+    <!-- Dark overlay with torchlight effect -->
+    <div id="dark-overlay"></div>
+
+    <!-- PDF Container -->
+    <div id="pdf-container">
+        <canvas id="pdf-canvas"></canvas>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+
+    <script>
+        const fileInput = document.getElementById('book-file');
+        const torchSizeInput = document.getElementById('torch-size');
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        const darkOverlay = document.getElementById('dark-overlay');
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let torchSize = torchSizeInput.value; // Get initial torch size
+
+        // Fix deprecated API warning
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js";
+
+        // Function to render the current page of the PDF
+        function renderPage(pageNum) {
+            pdfDoc.getPage(pageNum).then((page) => {
+                const viewport = page.getViewport({ scale: 1.5 });
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                page.render({
+                    canvasContext: ctx,
+                    viewport: viewport,
+                });
+            });
+        }
+
+        // Load the PDF when a file is selected
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const loadingTask = pdfjsLib.getDocument(e.target.result);
+                    loadingTask.promise.then((pdf) => {
+                        pdfDoc = pdf;
+                        renderPage(currentPage);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // Move the torchlight with the cursor
+        document.addEventListener('mousemove', (event) => {
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
+
+            // Adjust torch size dynamically
+            darkOverlay.style.mask = `radial-gradient(circle ${torchSize}px at ${mouseX}px ${mouseY}px, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 60%)`;
+            darkOverlay.style.webkitMask = `radial-gradient(circle ${torchSize}px at ${mouseX}px ${mouseY}px, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 60%)`;
+        });
+
+        // Update torch size when the slider is adjusted
+        torchSizeInput.addEventListener('input', (event) => {
+            torchSize = event.target.value;
+        });
+
+        // Navigate pages with arrow keys
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowRight' && currentPage < pdfDoc.numPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+            if (event.key === 'ArrowLeft' && currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+    </script>
+</body>
+</html>
